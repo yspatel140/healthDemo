@@ -2,7 +2,6 @@ package com.example.demo;
 
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,11 +17,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.ResponseCreator;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -31,6 +31,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
+@DirtiesContext(classMode = ClassMode.AFTER_EACH_TEST_METHOD)
 public class ApplicationHealthIndicatorIntegratioinTest {
 
 	@Autowired
@@ -39,24 +40,23 @@ public class ApplicationHealthIndicatorIntegratioinTest {
 	@Autowired
 	private RestTemplate restTemplate;
 
-	//private  server;
+	private MockRestServiceServer server;
 
-//	@Before
-//	public void setup() {
-//		this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
-//		
-//	}
+	MockMvc mockMvc;
+
+	@Before
+	public void setup() {
+		this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
+		server = MockRestServiceServer
+				.createServer((RestTemplate) restTemplate);
+
+	}
 
 	@Test
 	public void checkForOverallUp() throws Exception {
-		//server = MockRestServiceServer.bindTo(restTemplate).build();
-		MockMvc  mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
-		MockRestServiceServer server = MockRestServiceServer.createServer((RestTemplate) restTemplate);
-
-		server.expect(
-		            requestTo("http://localhost:8089"))
-		            .andExpect(method(HttpMethod.GET))
-		         				.andRespond(new ResponseCreator() {
+		server.expect(requestTo("http://localhost:8089"))
+				.andExpect(method(HttpMethod.GET))
+				.andRespond(new ResponseCreator() {
 
 					@Override
 					public ClientHttpResponse createResponse(
@@ -64,60 +64,33 @@ public class ApplicationHealthIndicatorIntegratioinTest {
 						throw new HttpClientErrorException(HttpStatus.NOT_FOUND);
 					}
 				});
-		   
-//		server.expect(requestTo("http://localhost:8089"))
-//				.andExpect(method(HttpMethod.GET))
-//				.andRespond(new ResponseCreator() {
-//
-//					@Override
-//					public ClientHttpResponse createResponse(
-//							ClientHttpRequest request) throws IOException {
-//						throw new HttpClientErrorException(HttpStatus.NOT_FOUND);
-//					}
-//				});
 
-		mockMvc
-				.perform(get("/health"))
+		mockMvc.perform(get("/health"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value("UP"))
 				.andExpect(jsonPath("$.application.status").value("UP"))
 				.andExpect(
 						jsonPath("$.application.external-web-service").value(
 								"UP"));
-		
+
 		server.verify();
 	}
 
 	@Test
 	public void checkForOverallDown() throws Exception {
-		MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
-		MockRestServiceServer server = MockRestServiceServer.createServer((RestTemplate) restTemplate);
-		
-		server.expect(
-	            requestTo("http://localhost:8089"))
-	            .andExpect(method(HttpMethod.GET))
-	         				.andRespond(new ResponseCreator() {
 
-				@Override
-				public ClientHttpResponse createResponse(
-						ClientHttpRequest request) throws IOException {
-					throw new ResourceAccessException("ex");
-				}
-			});
-		
-//		server.expect(MockMvcRequestBuilders.get("http://localhost:8089"))
-//				.andExpect(method(HttpMethod.GET))
-//				.andRespond(new ResponseCreator() {
-//
-//					@Override
-//					public ClientHttpResponse createResponse(
-//							ClientHttpRequest request) throws IOException {
-//						throw new ResourceAccessException("ex");
-//					}
-//				});
+		server.expect(requestTo("http://localhost:8089"))
+				.andExpect(method(HttpMethod.GET))
+				.andRespond(new ResponseCreator() {
 
-		mockMvc
-				.perform(get("/health"))
+					@Override
+					public ClientHttpResponse createResponse(
+							ClientHttpRequest request) throws IOException {
+						throw new ResourceAccessException("ex");
+					}
+				});
+
+		mockMvc.perform(get("/health"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value("UP"))
 				.andExpect(jsonPath("$.application.status").value("UP"))
